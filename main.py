@@ -66,6 +66,8 @@ class Person:
         self.contact_list = []
 
         self.quarantine_day_count = 0
+
+        self.recovery_day_count = 0
         self.days_to_recover = 14
 
         self.position = [row, column]
@@ -189,9 +191,12 @@ class Person:
             return True
         return False
 
-    def check_recover(self):
-        if self.quarantine_day_count == self.days_to_recover:
+    def check_recovered(self):
+        if self.recovery_day_count == self.days_to_recover:
             self.set_recovered()
+
+    def recovery_day_pass(self):
+        self.recovery_day_count += 1
 
     def quarantine_day_pass(self):
         self.quarantine_day_count += 1
@@ -205,8 +210,10 @@ class Person:
 
 
 class Run:
-    def __init__(self, size, number_people):
+    def __init__(self, size, number_people, duration):
         self.matrix_size = size
+        self.duration = duration
+        self.number_people = number_people
         self.matrix = Matrix(self.matrix_size)
         self.people = []
 
@@ -243,7 +250,6 @@ class Run:
 
             self.matrix.insert_person(p)
 
-
         #out of the for loop
         self.infect_random_person()
 
@@ -278,6 +284,12 @@ class Run:
         plot.xlabel("Time")
         plot.show()
 
+    def day_and_check_recovered(self):
+        for person in self.people:
+            if person.infected:
+                person.recovery_day_pass()
+                person.check_recovered()
+
     def tick(self):
         self.sleep()
         self.update()
@@ -292,7 +304,9 @@ class Run:
                 infections = person.infect_nearby(60, self.matrix)
                 print(f"Person {person.index} List: {person.nearby_people}")
         for person in infections:
-            person.set_infected()       
+            person.set_infected()
+
+        self.day_and_check_recovered()
 
         self.matrix.move_all_people()
 
@@ -309,8 +323,7 @@ class Run:
         
     
     def run_simulation(self):
-        days = 10
-        for i in range(days):
+        for i in range(self.duration):
             print(f"Day {i}")
             self.tick()
 
@@ -330,6 +343,6 @@ class Run:
 
 
 if __name__ == "__main__":
-    r = Run(10, 10)
+    r = Run(10, 10, 20) #size, number of people, time
     #r.tick()
     r.run_simulation()
