@@ -68,13 +68,14 @@ class Person:
         self.quarantine_day_count = 0
 
         self.recovery_day_count = 0
-        self.days_to_recover = 14
+        self.days_to_recover = 20
 
         self.position = [row, column]
 
         self.nearby_people = []
 
-        self.radius = 2
+        self.radius = 6
+        self.infection_probability = 25 #percent
 
     # def set_susceptible(self):
     #     self.susceptible = True
@@ -172,12 +173,12 @@ class Person:
                     if matrix_object.matrix[t_row][t_column] != matrix_object.empty:
                         self.nearby_people.insert(0,matrix_object.matrix[t_row][t_column])
 
-    def infect_nearby(self, probability, matrix_object):
+    def infect_nearby(self, matrix_object):
         self.update_nearby_people(matrix_object)
         infections = []
         for person in self.nearby_people:
             choice = random.randint(1,100)
-            if choice <= probability:
+            if choice <= self.infection_probability and person.susceptible:
                 infections.insert(0,person)
         return infections
             
@@ -219,7 +220,7 @@ class Run:
 
         self.duration_of_simulation = 10
 
-        self.tick_duration = 1 #seconds
+        self.tick_duration = 0 #seconds
 
         self.susceptible_per_tick = []
         self.infected_per_tick = []
@@ -228,6 +229,8 @@ class Run:
         self.total_susceptible = []
         self.total_infected = []
         self.total_recovered = []
+
+        self.x_axis = []
 
         self.create_people(number_people)
 
@@ -278,31 +281,48 @@ class Run:
     def update(self):
         self.matrix.get_people_list(self.people)
 
-    def plot(self, l):
-        plot.plot(l)
-        plot.ylabel("Infection")
-        plot.xlabel("Time")
-        plot.show()
-
     def day_and_check_recovered(self):
         for person in self.people:
             if person.infected:
                 person.recovery_day_pass()
                 person.check_recovered()
+    
+    def count_susceptible(self):
+        count = 0
+        for person in self.people:
+            if person.susceptible:
+                count += 1
+        self.total_susceptible.append(count)
+
+    def count_infected(self):
+        count = 0
+        for person in self.people:
+            if person.infected:
+                count += 1
+        self.total_infected.append(count)
+
+    def count_recovered(self):
+        count = 0
+        for person in self.people:
+            if person.recovered:
+                count += 1
+        self.total_recovered.append(count)
+
 
     def tick(self):
         self.sleep()
         self.update()
 
-        self.print_matrix()
+        #self.print_matrix()
 
         current_people = list(self.people)
 
+        infections = []
         for person in current_people:
             if person.infected:
                 #person.update_nearby_people(self.matrix)
-                infections = person.infect_nearby(60, self.matrix)
-                print(f"Person {person.index} List: {person.nearby_people}")
+                infections = person.infect_nearby(self.matrix)
+                #print(f"Person {person.index} List: {person.nearby_people}")
         for person in infections:
             person.set_infected()
 
@@ -310,39 +330,42 @@ class Run:
 
         self.matrix.move_all_people()
 
-        self.print_matrix()
+        #self.print_matrix()
 
-        print("\n\n\n")
-
-        #############
-        self.infected_per_tick.insert(-1, len(infections))
-        self.total_infected.insert(-1, sum(self.infected_per_tick))
-
-
-        #############
         
+
+        #############
+        # self.infected_per_tick.append(len(infections))
+        # self.total_infected.append(sum(self.infected_per_tick))
+        self.count_susceptible()
+        self.count_infected()
+        self.count_recovered()
+        #print(self.total_infected[-1])
+
+
+        #############
+    
+        #print("\n\n\n")
     
     def run_simulation(self):
         for i in range(self.duration):
-            print(f"Day {i}")
+            #print(f"Day {i}")
             self.tick()
-
-        self.plot(self.total_infected)
-
-
-# class Plot:
-#     def __init__(self):
-#         pass
-
-
-
-
-            
-
-
+        
+        # define plot
+        #plot.plot(self.total_susceptible, color="blue")
+        plot.plot(self.total_infected, color="red")
+        plot.plot(self.total_recovered, color="green")
+        plot.ylabel("SIR")
+        plot.xlabel("Time")
+        plot.show()
 
 
 if __name__ == "__main__":
-    r = Run(10, 10, 20) #size, number of people, time
+    size = 50
+    num_p = (size**2) * .25
+    num_p = int(num_p)
+
+    r = Run(size, num_p, 200) #size, number of people, time
     #r.tick()
     r.run_simulation()
