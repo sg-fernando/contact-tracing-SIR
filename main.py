@@ -41,6 +41,7 @@ class Matrix:
         new_row, new_column = person.move_random(self.size)
 
         while self.position_taken(new_row,new_column):
+            person.current_direction = person.current_direction + (math.pi / 2) #turn to the right to avoid running in to somone
             new_row, new_column = person.move_random(self.size)
 
         person.set_position(new_row,new_column)
@@ -54,7 +55,7 @@ class Matrix:
         
 
 class Person:
-    def __init__(self, row, column, index):
+    def __init__(self, row, column, index, initial_direction):
         self.susceptible = True
         self.infected = False
         self.recovered = False
@@ -71,11 +72,14 @@ class Person:
         self.days_to_recover = 20
 
         self.position = [row, column]
+        self.current_direction = initial_direction
+        self.direction_magnitude = 3
+        #self.direction_transformation = [[4,7,6,3,0,1,2,5,8], [4,6,3,0,1,2,5,8,7], [4,3,0,1,2,5,8,7,6], [4,2,1,0,3,6,7,8,5], [0,0,0,0,0,0,0,0,0], [4,0,1,2,5,8,7,6,3], [4,1,0,3,6,7,8,5,2], [4,0,3,6,7,8,5,2,1], [4,3,6,7,8,5,2,1,0]]
 
         self.nearby_people = []
 
         self.radius = 6
-        self.infection_probability = 25 #percent
+        self.infection_probability = 40 #percent
 
     # def set_susceptible(self):
     #     self.susceptible = True
@@ -94,50 +98,73 @@ class Person:
 
     def set_position(self,row,column):
         self.position = [row,column]
-
+        
     def move_random(self, size):
-        direction = random.randint(0,8)
+        
         row = self.position[0]
         column = self.position[1]
-        #direction moved
-        #012
-        #345
-        #678
-        up = True
-        down = True
-        left = True
-        right = True
 
-        if row == 0:
-            up = False
-        if row == size-1:
-            down = False
-        if column == 0:
-            left = False
-        if column == size-1:
-            right = False
-    
-        if direction == 0 and up and left:
-            return row-1,column-1
-        elif direction == 1 and up:
-            return row-1,column
-        elif direction == 2 and up and right:
-            return row-1,column+1
-        elif direction == 3 and left:
-            return row,column-1
-        elif direction == 4:
-            return row, column
-        elif direction == 5 and right:
-            return row, column+1
-        elif direction == 6 and down and left:
-            return row+1,column-1
-        elif direction == 7 and down:
-            return row+1,column
-        elif direction == 8 and down and right: #8
-            return row+1,column+1
-        #################################################
-        else:
-            return row, column
+        direction = random.gauss(0, 1.5) # from -pi to pi
+
+        if direction > math.pi:
+            direction = math.pi
+        elif direction < -1*math.pi:
+            direction = -1*math.pi
+        
+        self.current_direction = self.current_direction + direction # add directions to get new direction.
+
+        if self.current_direction > math.pi:
+            self.current_direction = self.current_direction - (2*math.pi)
+        elif self.current_direction < -1*math.pi:
+            self. current_direction = self.current_direction + (2*math.pi)
+
+        row_component = self.direction_magnitude * math.sin(self.current_direction)
+        col_component = self.direction_magnitude * math.cos(self.current_direction)
+
+        new_row = round(row + row_component) #int() always rounds down which causes people to bunch up at 0,0
+        new_column = round(column + col_component)
+
+        col_difference = 0
+        row_difference = 0
+
+        if new_row >= size:
+            row_difference = new_row - (size - 1)
+            new_row = size - 1
+        elif new_row < 0:
+            row_difference = -1 * new_row
+            new_row = 0
+        
+        if new_column >= size:
+            col_difference = new_column - (size - 1)
+            new_column = size - 1
+        elif new_column < 0:
+            col_difference = -1 * new_column
+            new_column = 0
+
+        if col_difference == 0: #avoid a divide by zero situation
+            if new_row < 0:
+                self.current_direction = math.pi * (1/2) #straight down.
+            elif new_row >= size:
+                self.current_direction = math.pi * (-1/2) #straight up.
+
+        if new_row < 0 and new_column < 0:
+            self.current_direction = math.atan(row_difference / col_difference)
+        elif new_row < 0 and new_column >= size:
+            self.current_direction = math.pi - math.atan(row_difference / col_difference)
+        elif new_row >= size and new_column < 0:
+            self.current_direction = -1 * math.atan(row_difference / col_difference)
+        elif new_row >= size and new_column >= size:
+            self.current_direction = math.pi + math.atan(row_difference / col_difference)  
+        elif col_difference != 0 and row_difference == 0:
+            if new_column < 0:
+                self.current_direction = 0 #straight right
+            elif new_column >= size:
+                self.current_direction = math.pi #straight left
+
+        if self.current_direction > math.pi: # turn from 0 to 2pi into -pi to pi
+            self.current_direction = self.current_direction - (2*math.pi)
+
+        return new_row, new_column
 
     def update_nearby_people(self, matrix_object):
         self.nearby_people = []
@@ -241,6 +268,20 @@ class Run:
     def random_position(self):
             return random.randint(0, self.matrix_size - 1), random.randint(0, self.matrix_size - 1)
 
+    def random_direction(self):
+        init_dir = random.randint(0,3)
+
+        if init_dir == 0:
+            return 0
+        elif init_dir == 1:
+            return math.pi / 2
+        elif init_dir == 2:
+            return math.pi
+        elif init_dir == 3:
+            return (-1/2) * math.pi
+        else:
+            print("error - no inital direction generated")
+
     def create_people(self, amount):
         for i in range(amount):
             row, column = self.random_position()
@@ -248,7 +289,9 @@ class Run:
             while self.matrix.position_taken(row,column):
                 row, column = self.random_position()
 
-            p = Person(row,column, i)
+            initial_direction = self.random_direction()
+
+            p = Person(row,column, i, initial_direction)
             self.people.insert(i,p)
 
             self.matrix.insert_person(p)
@@ -310,7 +353,7 @@ class Run:
 
 
     def tick(self):
-        self.sleep()
+        #self.sleep()
         self.update()
 
         #self.print_matrix()
@@ -330,7 +373,7 @@ class Run:
 
         self.matrix.move_all_people()
 
-        #self.print_matrix()
+        self.print_matrix()
 
         
 
@@ -345,12 +388,13 @@ class Run:
 
         #############
     
-        #print("\n\n\n")
+        print("\n\n\n")
     
     def run_simulation(self):
         for i in range(self.duration):
             #print(f"Day {i}")
             self.tick()
+            print(i)
         
         # define plot
         #plot.plot(self.total_susceptible, color="blue")
@@ -362,8 +406,8 @@ class Run:
 
 
 if __name__ == "__main__":
-    size = 50
-    num_p = (size**2) * .25
+    size = 30
+    num_p = (size**2) * .15
     num_p = int(num_p)
 
     r = Run(size, num_p, 200) #size, number of people, time
