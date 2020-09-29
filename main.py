@@ -71,6 +71,13 @@ class Person:
         self.days_to_recover = 20
 
         self.position = [row, column]
+        self.current_direction = 4 # this is in absolute direction:
+        self.direction_transformation = [[4,7,6,3,0,1,2,5,8], [4,6,3,0,1,2,5,8,7], [4,3,0,1,2,5,8,7,6], [4,2,1,0,3,6,7,8,5], [0,0,0,0,0,0,0,0,0], [4,0,1,2,5,8,7,6,3], [4,1,0,3,6,7,8,5,2], [4,0,3,6,7,8,5,2,1], [4,3,6,7,8,5,2,1,0]]
+        
+        #Absolute Direction chart:
+        #012
+        #345
+        #678
 
         self.nearby_people = []
 
@@ -94,15 +101,23 @@ class Person:
 
     def set_position(self,row,column):
         self.position = [row,column]
+        
+    def move_random(self, size,):
+        #direction = random.randint(0,8)
 
-    def move_random(self, size):
-        direction = random.randint(0,8)
         row = self.position[0]
         column = self.position[1]
-        #direction moved
+
+        #absolute direction:
         #012
         #345
         #678
+
+        #relative direction (up is direction currently moving)
+        #345
+        #206  Based on gaussian distribution where you are most likely to move forward.
+        #187
+          
         up = True
         down = True
         left = True
@@ -110,34 +125,71 @@ class Person:
 
         if row == 0:
             up = False
+            if self.current_direction == 1:
+                self.current_direction = 7
         if row == size-1:
             down = False
+            if self.current_direction == 7:
+                self.current_direction = 1
         if column == 0:
             left = False
+            if self.current_direction == 3:
+                self.current_direction = 5
         if column == size-1:
             right = False
+            if self.current_direction == 5:
+                self.current_direction = 3
+
+        if up == False:
+            if right == False and self.current_direction == 2:
+                self.current_direction = 6
+            if left == False and self.current_direction == 0:
+                self.current_direction = 8
+        if down == False:
+            if right == False and self.current_direction == 8:
+                self.current_direction = 0
+            if left == False and self.current_direction == 6:
+                self.current_direction = 2
+
+        while self.current_direction == 4:
+            self.current_direction = random.randint(0,8)
+
+        relative_direction = int(random.gauss(4,2)) #Normal distribution with 4 as the mean and a standard deviation of 2
+
+        if relative_direction > 8:
+            relative_direction = 8
+        if relative_direction < 0:
+            relative_direction = 0
+        
+        absolute_direction = self.direction_transformation[self.current_direction][relative_direction]
     
-        if direction == 0 and up and left:
+        if absolute_direction == 0 and up and left:
             return row-1,column-1
-        elif direction == 1 and up:
+        elif absolute_direction == 1 and up:
             return row-1,column
-        elif direction == 2 and up and right:
+        elif absolute_direction == 2 and up and right:
             return row-1,column+1
-        elif direction == 3 and left:
+        elif absolute_direction == 3 and left:
             return row,column-1
-        elif direction == 4:
+        elif absolute_direction == 4:
             return row, column
-        elif direction == 5 and right:
+        elif absolute_direction == 5 and right:
             return row, column+1
-        elif direction == 6 and down and left:
+        elif absolute_direction == 6 and down and left:
             return row+1,column-1
-        elif direction == 7 and down:
+        elif absolute_direction == 7 and down:
             return row+1,column
-        elif direction == 8 and down and right: #8
+        elif absolute_direction == 8 and down and right: #8
             return row+1,column+1
         #################################################
         else:
             return row, column
+
+
+        if absolute_direction == 4:
+            self.current_direction = random.randint(0,8)
+        else:
+            self.current_direction = absolute_direction
 
     def update_nearby_people(self, matrix_object):
         self.nearby_people = []
@@ -362,7 +414,7 @@ class Run:
 
 
 if __name__ == "__main__":
-    size = 50
+    size = 10
     num_p = (size**2) * .25
     num_p = int(num_p)
 
