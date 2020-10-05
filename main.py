@@ -64,12 +64,19 @@ class Person:
 
         self.quarantined = False #quarantined is for infected
         self.removed = False #removed is for contact tracing
-        self.contact_list = []
+        self.contact_list = [[]]
 
         self.quarantine_day_count = 0
 
         self.recovery_day_count = 0
         self.days_to_recover = 20
+        self.mean_recovery = 35
+        self.standard_deviation_recovery = 10
+        self.quarantine_duration = 14
+        self.contact_memory = 3
+
+        self.log_mean_recovery = math.log( (self.mean_recovery**2) / math.sqrt(self.mean_recovery**2 + self.standard_deviation_recovery**2) )
+        self.log_standard_deviation_recovery = math.sqrt(math.log( 1 + (self.standard_deviation_recovery**2) / (self.mean_recovery**2) ))
 
         self.position = [row, column]
         self.current_direction = initial_direction
@@ -78,8 +85,8 @@ class Person:
 
         self.nearby_people = []
 
-        self.radius = 6
-        self.infection_probability = 40 #percent
+        self.radius = 12
+        self.infection_probability = 10 #percent
 
     # def set_susceptible(self):
     #     self.susceptible = True
@@ -87,14 +94,24 @@ class Person:
     #     self.recovered = False
 
     def set_infected(self):
+        self.days_to_recover = int(random.lognormvariate(self.log_mean_recovery,self.log_standard_deviation_recovery))
         self.susceptible = False
         self.infected = True
         self.recovered = False
+        
 
     def set_recovered(self):
         self.susceptible = False
         self.infected = False
         self.recovered = True
+
+    def quarantine_close_contacts(self, efficiency):
+        temp = []
+        for i in self.contact_list:
+            for j in i:
+                temp.insert(0,j)
+
+        return random.sample(temp, int(efficiency * len(temp)))
 
     def set_position(self,row,column):
         self.position = [row,column]
@@ -200,6 +217,12 @@ class Person:
                     if matrix_object.matrix[t_row][t_column] != matrix_object.empty:
                         self.nearby_people.insert(0,matrix_object.matrix[t_row][t_column])
 
+    def update_close_contacts(self, matrix_object):
+        self.update_nearby_people(matrix_object)
+
+        del self.contact_list[0]
+        self.contact_list.insert(-1,self.nearby_people)
+
     def infect_nearby(self, matrix_object):
         self.update_nearby_people(matrix_object)
         infections = []
@@ -222,6 +245,9 @@ class Person:
     def check_recovered(self):
         if self.recovery_day_count == self.days_to_recover:
             self.set_recovered()
+            return True
+        else:
+            return False
 
     def recovery_day_pass(self):
         self.recovery_day_count += 1
@@ -244,8 +270,10 @@ class Run:
         self.number_people = number_people
         self.matrix = Matrix(self.matrix_size)
         self.people = []
+        self.groups = []
 
         self.duration_of_simulation = 10
+        self.test_frequencey = 3
 
         self.tick_duration = 0 #seconds
 
@@ -259,7 +287,7 @@ class Run:
 
         self.x_axis = []
 
-        self.create_people(number_people)
+        self.create_people(number_people, 10)
 
 
     def sleep(self):
@@ -282,7 +310,11 @@ class Run:
         else:
             print("error - no inital direction generated")
 
-    def create_people(self, amount):
+    def create_people(self, amount, num_groups):
+        current_group = 0
+        for i in range(num_groups):
+            self.groups.insert(i,[])
+
         for i in range(amount):
             row, column = self.random_position()
 
@@ -293,6 +325,12 @@ class Run:
 
             p = Person(row,column, i, initial_direction)
             self.people.insert(i,p)
+            self.groups[current_group].insert(i,p)
+
+            if current_group == num_groups - 1:
+                current_group = 0
+            else:
+                current_group += 1
 
             self.matrix.insert_person(p)
 
@@ -307,29 +345,58 @@ class Run:
         for i in self.matrix.matrix:
             print(i)
 
-    def remove_person(self, person):
+    def remove_person(self, person):  #For people who have tested positive
         pos = person.position
         row = pos[0]
         column = pos[1]
         self.matrix.matrix[row][column] = self.matrix.empty
         person.removed = True
+        print(f"removed person:{person.index}")
 
-    def quarantine_person(self, person):
+    def quarantine_person(self, person): #For close contacts of actual positives
         pos = person.position
         row = pos[0]
         column = pos[1]
         self.matrix.matrix[row][column] = self.matrix.empty
         person.quarantine = True
+        
+
+    def test_group(self, group):
+        for person in self.groups[group]:
+            if person.infected and not(person.removed):
+                self.remove_person(person)
+                for contact in person.quarantine_close_contacts(.8):
+                    self.quarantine_person(contact)
+
 
     def update(self):
         self.matrix.get_people_list(self.people)
+
+    def re_insert_person(self, person):
+        row, column = self.random_position()
+
+        while self.matrix.position_taken(row,column):
+            row, column = self.random_position()
+
+        initial_direction = self.random_direction()
+
+        person.position = [row, column]
+        person.current_direction = initial_direction
+
+        self.matrix.insert_person(person)
 
     def day_and_check_recovered(self):
         for person in self.people:
             if person.infected:
                 person.recovery_day_pass()
-                person.check_recovered()
-    
+                if person.check_recovered() and person.removed:
+                    self.re_insert_person(person)
+
+            if person.quarantined:
+                person.quarantine_day_pass()
+                if person.quarantine_day_count == person.quarantine_duration:
+                    self.re_insert_person(person)
+ 
     def count_susceptible(self):
         count = 0
         for person in self.people:
@@ -366,14 +433,16 @@ class Run:
                 #person.update_nearby_people(self.matrix)
                 infections = person.infect_nearby(self.matrix)
                 #print(f"Person {person.index} List: {person.nearby_people}")
+            person.update_close_contacts(self.matrix)
         for person in infections:
             person.set_infected()
 
         self.day_and_check_recovered()
 
+
         self.matrix.move_all_people()
 
-        self.print_matrix()
+        #self.print_matrix()
 
         
 
@@ -388,16 +457,25 @@ class Run:
 
         #############
     
-        print("\n\n\n")
+        #print("\n\n\n")
     
     def run_simulation(self):
+        current_group = 0
+
         for i in range(self.duration):
             #print(f"Day {i}")
             self.tick()
-            print(i)
+
+            if (i+1)%self.test_frequencey == 0:
+                self.test_group(current_group)
+
+                if current_group == len(self.groups):
+                    current_group = 0
+
+            #print(i)
         
         # define plot
-        #plot.plot(self.total_susceptible, color="blue")
+        plot.plot(self.total_susceptible, color="blue")
         plot.plot(self.total_infected, color="red")
         plot.plot(self.total_recovered, color="green")
         plot.ylabel("SIR")
