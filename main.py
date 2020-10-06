@@ -62,8 +62,9 @@ class Person:
 
         self.index = index
 
-        self.quarantined = False #quarantined is for infected
-        self.removed = False #removed is for contact tracing
+        self.quarantined = False #quarantined is for close contacts
+        self.removed = False #removed is for tested positive
+        self.test_positive = False
         self.contact_list = [[]]
 
         self.quarantine_day_count = 0
@@ -264,7 +265,7 @@ class Person:
 
 
 class Run:
-    def __init__(self, size, number_people, duration):
+    def __init__(self, size, number_people, duration, num_groups, tracing_efficiency, test_frequencey, test_delay, testing):
         self.matrix_size = size
         self.duration = duration
         self.number_people = number_people
@@ -272,8 +273,8 @@ class Run:
         self.people = []
         self.groups = []
 
-        self.duration_of_simulation = 10
-        self.test_frequencey = 3
+        self.test_frequencey = test_frequencey
+        self.test_delay = test_delay
 
         self.tick_duration = 0 #seconds
 
@@ -286,8 +287,11 @@ class Run:
         self.total_recovered = []
 
         self.x_axis = []
+        self.contact_tracing_efficiency = tracing_efficiency
+        self.testing = testing
+        self.number_groups = num_groups
 
-        self.create_people(number_people, 10)
+        self.create_people(number_people, self.number_groups)
 
 
     def sleep(self):
@@ -351,23 +355,30 @@ class Run:
         column = pos[1]
         self.matrix.matrix[row][column] = self.matrix.empty
         person.removed = True
-        print(f"removed person:{person.index}")
+        print(f"removed person:{person}")
 
     def quarantine_person(self, person): #For close contacts of actual positives
         pos = person.position
         row = pos[0]
         column = pos[1]
         self.matrix.matrix[row][column] = self.matrix.empty
-        person.quarantine = True
+        person.quarantined = True
+        print(f"quarantined person:{person}")
         
+
+    def test_results_group(self, group):
+        for person in self.groups[group]:
+            if person.test_positive and not(person.removed):
+                self.remove_person(person)
+                person.test_positive = False
+                for contact in person.quarantine_close_contacts(self.contact_tracing_efficiency):
+                    if not(contact.removed or contact.quarantined):
+                        self.quarantine_person(contact)
 
     def test_group(self, group):
         for person in self.groups[group]:
-            if person.infected and not(person.removed):
-                self.remove_person(person)
-                for contact in person.quarantine_close_contacts(.8):
-                    self.quarantine_person(contact)
-
+            if person.infected:
+                person.test_positive = True
 
     def update(self):
         self.matrix.get_people_list(self.people)
@@ -382,6 +393,7 @@ class Run:
 
         person.position = [row, column]
         person.current_direction = initial_direction
+        person.test_positive = False
 
         self.matrix.insert_person(person)
 
@@ -390,11 +402,13 @@ class Run:
             if person.infected:
                 person.recovery_day_pass()
                 if person.check_recovered() and person.removed:
+                    print(f"{person} recovered!")
                     self.re_insert_person(person)
 
             if person.quarantined:
                 person.quarantine_day_pass()
                 if person.quarantine_day_count == person.quarantine_duration:
+                    print(f"{person} finished quarantine!")
                     self.re_insert_person(person)
  
     def count_susceptible(self):
@@ -461,20 +475,35 @@ class Run:
     
     def run_simulation(self):
         current_group = 0
+        results_day = []
+        
+        for i in range(self.number_groups):
+            results_day.insert(0,0)
 
-        for i in range(self.duration):
+        for day in range(self.duration):
             #print(f"Day {i}")
             self.tick()
 
-            if (i+1)%self.test_frequencey == 0:
+            if (day+1)%self.test_frequencey == 0 and self.testing:
                 self.test_group(current_group)
+                results_day[current_group] = day+1+self.test_delay
 
-                if current_group == len(self.groups):
+                if current_group == self.number_groups - 1:
                     current_group = 0
+                else:
+                    current_group += 1
+
+            for i in range(self.number_groups):
+                if results_day[i] == day+1:
+                    self.test_results_group(i)
 
             #print(i)
+            if self.total_recovered[-1] == self.number_people:
+                print("done")
+                break
         
         # define plot
+        print(f"Maximum infected: {max(self.total_infected)}")
         plot.plot(self.total_susceptible, color="blue")
         plot.plot(self.total_infected, color="red")
         plot.plot(self.total_recovered, color="green")
@@ -488,6 +517,6 @@ if __name__ == "__main__":
     num_p = (size**2) * .15
     num_p = int(num_p)
 
-    r = Run(size, num_p, 200) #size, number of people, time
+    r = Run(size, num_p, 200, 3, 0.8, 4, 2, True) #size, number of people, time, number of groups, tracing efficiency, test frequencey, testing delay, testing (bool)
     #r.tick()
     r.run_simulation()
