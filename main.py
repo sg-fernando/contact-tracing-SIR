@@ -355,7 +355,7 @@ class Run:
         column = pos[1]
         self.matrix.matrix[row][column] = self.matrix.empty
         person.removed = True
-        print(f"removed person:{person}")
+        #print(f"removed person:{person}")
 
     def quarantine_person(self, person): #For close contacts of actual positives
         pos = person.position
@@ -363,7 +363,7 @@ class Run:
         column = pos[1]
         self.matrix.matrix[row][column] = self.matrix.empty
         person.quarantined = True
-        print(f"quarantined person:{person}")
+        #print(f"quarantined person:{person}")
         
 
     def test_results_group(self, group):
@@ -402,13 +402,13 @@ class Run:
             if person.infected:
                 person.recovery_day_pass()
                 if person.check_recovered() and person.removed:
-                    print(f"{person} recovered!")
+                    #print(f"{person} recovered!")
                     self.re_insert_person(person)
 
             if person.quarantined:
                 person.quarantine_day_pass()
                 if person.quarantine_day_count == person.quarantine_duration:
-                    print(f"{person} finished quarantine!")
+                    #print(f"{person} finished quarantine!")
                     self.re_insert_person(person)
  
     def count_susceptible(self):
@@ -498,25 +498,48 @@ class Run:
                     self.test_results_group(i)
 
             #print(i)
-            if self.total_recovered[-1] == self.number_people:
-                print("done")
+            if self.total_recovered[-1] == self.number_people - 1:
+                #print("done")
                 break
         
         # define plot
-        print(f"Maximum infected: {max(self.total_infected)}")
-        plot.plot(self.total_susceptible, color="blue")
-        plot.plot(self.total_infected, color="red")
-        plot.plot(self.total_recovered, color="green")
-        plot.ylabel("SIR")
-        plot.xlabel("Time")
-        plot.show()
+        #print(f"Maximum infected: {max(self.total_infected)}")
+        #plot.plot(self.total_susceptible, color="blue")
+        #plot.plot(self.total_infected, color="red")
+        #plot.plot(self.total_recovered, color="green")
+        #plot.ylabel("SIR")
+        #plot.xlabel("Time")
+        #plot.show()
 
+class Test:
+    def __init__(self, size, num_p, duration, num_groups, test_frequencey, test_delay):
+        self.size = size
+        self.num_p = num_p
+        self.duration = duration
+        self.num_groups = num_groups
+        self.test_frequencey = test_frequencey
+        self.test_delay = test_delay
+
+
+    def efficiency(self, min_efficiency, max_efficiency, efficiency_step):
+        current_efficiency = min_efficiency
+        maximums = []
+        while current_efficiency <= max_efficiency:
+            r = Run(self.size, self.num_p, self.duration, self.num_groups, current_efficiency, self.test_frequencey, self.test_delay, True)
+            r.run_simulation()
+            maximums.append(max(r.total_infected))
+            current_efficiency += efficiency_step
+            print('*')
+        print(maximums)
 
 if __name__ == "__main__":
     size = 30
     num_p = (size**2) * .15
     num_p = int(num_p)
 
-    r = Run(size, num_p, 200, 3, 0.8, 4, 2, True) #size, number of people, time, number of groups, tracing efficiency, test frequencey, testing delay, testing (bool)
+    t = Test(size, num_p, 200, 5, 5, 3)
+    t.efficiency(0.5, 0.8, 0.1)
+
+    #r = Run(size, num_p, 200, 5, 0.5, 5, 5, True) #size, number of people, time, number of groups, tracing efficiency, test frequencey, testing delay, testing (bool)
     #r.tick()
-    r.run_simulation()
+    #r.run_tracing_simulation(0.9, 0.1)
