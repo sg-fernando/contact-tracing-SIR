@@ -521,16 +521,29 @@ class Test:
         self.test_delay = test_delay
 
 
-    def efficiency(self, min_efficiency, max_efficiency, efficiency_step):
+    def efficiency(self, min_efficiency, max_efficiency, efficiency_step, number_of_trials):
         current_efficiency = min_efficiency
         maximums = []
+        current_maximums = []
+        efficiencies = []
+        average_maximums = []
         while current_efficiency <= max_efficiency:
-            r = Run(self.size, self.num_p, self.duration, self.num_groups, current_efficiency, self.test_frequencey, self.test_delay, True)
-            r.run_simulation()
-            maximums.append(max(r.total_infected))
-            current_efficiency += efficiency_step
+            for i in range(number_of_trials):
+                r = Run(self.size, self.num_p, self.duration, self.num_groups, current_efficiency, self.test_frequencey, self.test_delay, True)
+                r.run_simulation()
+                print("---*")
+                current_maximums.append(max(r.total_infected))
+            efficiencies.append(str(round(current_efficiency, 2)))
+            current_efficiency = current_efficiency + efficiency_step
+            maximums.append(current_maximums)
+            current_maximums = []
             print('*')
-        print(maximums)
+        for nums in maximums:
+            average_maximums.append(sum(nums) / len(nums))
+        plot.bar(efficiencies, average_maximums)
+        print(average_maximums)
+        print(efficiencies)
+        plot.show()
 
 if __name__ == "__main__":
     size = 30
@@ -538,7 +551,7 @@ if __name__ == "__main__":
     num_p = int(num_p)
 
     t = Test(size, num_p, 200, 5, 5, 3)
-    t.efficiency(0.5, 0.8, 0.1)
+    t.efficiency(0.1, 0.9, 0.1, 5)
 
     #r = Run(size, num_p, 200, 5, 0.5, 5, 5, True) #size, number of people, time, number of groups, tracing efficiency, test frequencey, testing delay, testing (bool)
     #r.tick()
